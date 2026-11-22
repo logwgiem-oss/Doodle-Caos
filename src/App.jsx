@@ -172,6 +172,7 @@ function DrawingBoard({ onSubmit, disabled }) {
         onPointerMove={moveDrawing}
         onPointerUp={stopDrawing}
         onPointerCancel={stopDrawing}
+        onContextMenu={(e) => e.preventDefault()}
         style={{
           width: "100%",
           height: "350px",
@@ -179,6 +180,10 @@ function DrawingBoard({ onSubmit, disabled }) {
           borderRadius: "12px",
           touchAction: "none",
           display: "block",
+          userSelect: "none",
+          WebkitUserSelect: "none",
+          WebkitTouchCallout: "none",
+          WebkitTapHighlightColor: "transparent",
         }}
       />
 
@@ -895,9 +900,8 @@ function App() {
                 </p>
 
                 {(chain.steps || []).map((step, stepIndex) => {
-                  // get_game_state returns these fields as stage/type/text.
-                  // The fallback names also support older response formats.
-                  const stage = step.stage ?? step.stage_number ?? stepIndex + 1;
+                  const stage =
+                    step.stage ?? step.stage_number ?? stepIndex + 1;
                   const type = step.type || step.action_type;
                   const textAnswer = step.text ?? step.text_answer;
 
@@ -907,7 +911,8 @@ function App() {
 
                       <p>
                         <strong>
-                          Stage {stage} · {type === "drawing" ? "Drawing" : "Guess"}
+                          Stage {stage} ·{" "}
+                          {type === "drawing" ? "Drawing" : "Guess"}
                         </strong>
                         {step.nickname ? ` · ${step.nickname}` : ""}
                       </p>
@@ -919,7 +924,9 @@ function App() {
                           downloadName={`doodle-chaos-chain-${index + 1}-stage-${stage}`}
                         />
                       ) : (
-                        <p>{textAnswer || "No guess was submitted."}</p>
+                        <p>
+                          {textAnswer || "No guess was submitted."}
+                        </p>
                       )}
                     </div>
                   );
