@@ -60,15 +60,15 @@ function DrawingBoard({ onSubmit, disabled }) {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const resize = () => {
+    function resize() {
       const rect = canvas.getBoundingClientRect();
-      const old = strokesRef.current;
+      const oldStrokes = strokesRef.current;
 
       canvas.width = Math.max(1, Math.round(rect.width * 2));
       canvas.height = Math.max(1, Math.round(rect.height * 2));
 
-      redraw(old);
-    };
+      redraw(oldStrokes);
+    }
 
     resize();
     window.addEventListener("resize", resize);
@@ -86,7 +86,7 @@ function DrawingBoard({ onSubmit, disabled }) {
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     strokes.forEach((stroke) => {
-      if (!stroke.points || stroke.points.length === 0) return;
+      if (!stroke.points?.length) return;
 
       ctx.beginPath();
       ctx.strokeStyle = stroke.color;
@@ -110,8 +110,7 @@ function DrawingBoard({ onSubmit, disabled }) {
   }
 
   function getPoint(event) {
-    const canvas = canvasRef.current;
-    const rect = canvas.getBoundingClientRect();
+    const rect = canvasRef.current.getBoundingClientRect();
 
     return {
       x: (event.clientX - rect.left) / rect.width,
@@ -173,7 +172,6 @@ function DrawingBoard({ onSubmit, disabled }) {
         onPointerMove={moveDrawing}
         onPointerUp={stopDrawing}
         onPointerCancel={stopDrawing}
-        onPointerLeave={stopDrawing}
         style={{
           width: "100%",
           height: "350px",
@@ -181,7 +179,6 @@ function DrawingBoard({ onSubmit, disabled }) {
           borderRadius: "12px",
           touchAction: "none",
           display: "block",
-          cursor: disabled ? "default" : "crosshair",
         }}
       />
 
@@ -236,6 +233,61 @@ function DrawingBoard({ onSubmit, disabled }) {
   );
 }
 
+function DrawingPreview({ drawing }) {
+  const canvasRef = useRef(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext("2d");
+
+    canvas.width = 600;
+    canvas.height = 400;
+
+    ctx.fillStyle = "white";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    if (!Array.isArray(drawing)) return;
+
+    drawing.forEach((stroke) => {
+      if (!stroke.points?.length) return;
+
+      ctx.beginPath();
+      ctx.strokeStyle = stroke.color || "#111";
+      ctx.lineWidth = (stroke.size || 5) * 2;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+
+      stroke.points.forEach((point, index) => {
+        const x = point.x * canvas.width;
+        const y = point.y * canvas.height;
+
+        if (index === 0) {
+          ctx.moveTo(x, y);
+        } else {
+          ctx.lineTo(x, y);
+        }
+      });
+
+      ctx.stroke();
+    });
+  }, [drawing]);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      style={{
+        width: "100%",
+        height: "auto",
+        background: "white",
+        borderRadius: "10px",
+        display: "block",
+      }}
+    />
+  );
+}
+
 function App() {
   const [nickname, setNickname] = useState("");
   const [roomCode, setRoomCode] = useState("");
@@ -260,7 +312,8 @@ function App() {
   const [promptSubmitted, setPromptSubmitted] = useState(false);
 
   const [gallery, setGallery] = useState([]);
-  const [preview, setPreview] = useState(true);
+
+  const [preview, setPreview] = useState(false);
   const [previewCountdown, setPreviewCountdown] =
     useState(PREVIEW_SECONDS);
 
@@ -269,8 +322,6 @@ function App() {
   const [message, setMessage] = useState("");
 
   const previewKeyRef = useRef("");
-
-  const isHost = room?.host_player_id === playerId;
 
   async function createRoom() {
     if (!nickname.trim()) {
@@ -452,7 +503,7 @@ function App() {
     setMessage("");
   }
 
-  // Refresh the game and room regularly.
+  // Poll the room and game state.
   useEffect(() => {
     if (!roomId || !playerId) return;
 
@@ -467,12 +518,9 @@ function App() {
     return () => clearInterval(interval);
   }, [roomId, playerId]);
 
-  // Start a fresh preview whenever a new task arrives.
+  // Show a three-second preview for each new drawing or guessing task.
   useEffect(() => {
-    if (
-      phase !== "drawing" &&
-      phase !== "guessing"
-    ) {
+    if (phase !== "drawing" && phase !== "guessing") {
       setPreview(false);
       return;
     }
@@ -504,14 +552,16 @@ function App() {
     return () => clearInterval(interval);
   }, [phase, turnNumber]);
 
-  // Countdown for the current game phase.
+  // Phase countdown.
   useEffect(() => {
     if (!phaseEndsAt) return;
 
     const update = () => {
       const remaining = Math.max(
         0,
-        Math.ceil((new Date(phaseEndsAt).getTime() - Date.now()) / 1000)
+        Math.ceil(
+          (new Date(phaseEndsAt).getTime() - Date.now()) / 1000
+        )
       );
 
       setSecondsLeft(remaining);
@@ -536,6 +586,7 @@ function App() {
       return (
         <div style={styles.card}>
           <h2>Memorise this prompt!</h2>
+
           <div
             style={{
               background: "white",
@@ -670,17 +721,16 @@ function App() {
         {phase === "waiting" && (
           <div style={styles.card}>
             <h2>Waiting for the game</h2>
+
             <p>Invite your friends using the room code.</p>
 
-            {isHost && (
-              <button
-                style={styles.button}
-                onClick={startGame}
-                disabled={loading}
-              >
-                Start game
-              </button>
-            )}
+            <button
+              style={styles.button}
+              onClick={startGame}
+              disabled={loading}
+            >
+              🎮 Start Game
+            </button>
           </div>
         )}
 
@@ -696,7 +746,9 @@ function App() {
             <h2>{formatTime(secondsLeft)}</h2>
 
             {promptSubmitted ? (
-              <h3>✅ Your prompt is submitted. Waiting for everyone...</h3>
+              <h3>
+                ✅ Your prompt is submitted. Waiting for everyone...
+              </h3>
             ) : (
               <>
                 <textarea
@@ -725,7 +777,9 @@ function App() {
           <>
             <div style={styles.card}>
               <h2>
-                {phase === "drawing" ? "✏️ Drawing round" : "💭 Guessing round"}
+                {phase === "drawing"
+                  ? "✏️ Drawing round"
+                  : "💭 Guessing round"}
               </h2>
 
               <p>
@@ -743,6 +797,7 @@ function App() {
             ) : phase === "drawing" ? (
               <div style={styles.card}>
                 <h2>Draw what you remember!</h2>
+
                 <p>The prompt is hidden now. Good luck!</p>
 
                 <DrawingBoard
@@ -787,6 +842,7 @@ function App() {
         {phase === "finished" && (
           <div style={styles.card}>
             <h1>🎉 Final reveal!</h1>
+
             <p>Look how much the original ideas changed!</p>
 
             {gallery.map((chain, index) => (
@@ -827,61 +883,6 @@ function App() {
         )}
       </div>
     </main>
-  );
-}
-
-function DrawingPreview({ drawing }) {
-  const canvasRef = useRef(null);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const ctx = canvas.getContext("2d");
-
-    canvas.width = 600;
-    canvas.height = 400;
-
-    ctx.fillStyle = "white";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    if (!Array.isArray(drawing)) return;
-
-    drawing.forEach((stroke) => {
-      if (!stroke.points?.length) return;
-
-      ctx.beginPath();
-      ctx.strokeStyle = stroke.color || "#111";
-      ctx.lineWidth = (stroke.size || 5) * 2;
-      ctx.lineCap = "round";
-      ctx.lineJoin = "round";
-
-      stroke.points.forEach((point, index) => {
-        const x = point.x * canvas.width;
-        const y = point.y * canvas.height;
-
-        if (index === 0) {
-          ctx.moveTo(x, y);
-        } else {
-          ctx.lineTo(x, y);
-        }
-      });
-
-      ctx.stroke();
-    });
-  }, [drawing]);
-
-  return (
-    <canvas
-      ref={canvasRef}
-      style={{
-        width: "100%",
-        height: "auto",
-        background: "white",
-        borderRadius: "10px",
-        display: "block",
-      }}
-    />
   );
 }
 
