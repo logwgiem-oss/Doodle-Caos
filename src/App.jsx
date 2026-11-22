@@ -233,7 +233,11 @@ function DrawingBoard({ onSubmit, disabled }) {
   );
 }
 
-function DrawingPreview({ drawing }) {
+function DrawingPreview({
+  drawing,
+  allowDownload = false,
+  downloadName = "doodle-chaos-drawing",
+}) {
   const canvasRef = useRef(null);
 
   useEffect(() => {
@@ -241,7 +245,6 @@ function DrawingPreview({ drawing }) {
     if (!canvas) return;
 
     const ctx = canvas.getContext("2d");
-
     canvas.width = 600;
     canvas.height = 400;
 
@@ -274,17 +277,41 @@ function DrawingPreview({ drawing }) {
     });
   }, [drawing]);
 
+  function downloadPng() {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const link = document.createElement("a");
+    link.href = canvas.toDataURL("image/png");
+    link.download = `${downloadName}.png`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  }
+
   return (
-    <canvas
-      ref={canvasRef}
-      style={{
-        width: "100%",
-        height: "auto",
-        background: "white",
-        borderRadius: "10px",
-        display: "block",
-      }}
-    />
+    <div>
+      <canvas
+        ref={canvasRef}
+        style={{
+          width: "100%",
+          height: "auto",
+          background: "white",
+          borderRadius: "10px",
+          display: "block",
+        }}
+      />
+
+      {allowDownload && (
+        <button
+          type="button"
+          style={styles.button}
+          onClick={downloadPng}
+        >
+          ⬇️ Download PNG
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -844,6 +871,11 @@ function App() {
             <h1>🎉 Final reveal!</h1>
 
             <p>Look how much the original ideas changed!</p>
+            <p>Each drawing can be saved as a PNG image.</p>
+
+            {gallery.length === 0 && (
+              <p>The gallery is empty. Try refreshing the page.</p>
+            )}
 
             {gallery.map((chain, index) => (
               <div
@@ -862,21 +894,36 @@ function App() {
                   {chain.original_prompt}
                 </p>
 
-                {(chain.steps || []).map((step, stepIndex) => (
-                  <div key={step.id || stepIndex}>
-                    <hr style={{ borderColor: "#555" }} />
+                {(chain.steps || []).map((step, stepIndex) => {
+                  // get_game_state returns these fields as stage/type/text.
+                  // The fallback names also support older response formats.
+                  const stage = step.stage ?? step.stage_number ?? stepIndex + 1;
+                  const type = step.type || step.action_type;
+                  const textAnswer = step.text ?? step.text_answer;
 
-                    <p>
-                      <strong>Stage {step.stage_number}</strong>
-                    </p>
+                  return (
+                    <div key={step.id || stepIndex}>
+                      <hr style={{ borderColor: "#555" }} />
 
-                    {step.action_type === "drawing" ? (
-                      <DrawingPreview drawing={step.drawing} />
-                    ) : (
-                      <p>{step.text_answer}</p>
-                    )}
-                  </div>
-                ))}
+                      <p>
+                        <strong>
+                          Stage {stage} · {type === "drawing" ? "Drawing" : "Guess"}
+                        </strong>
+                        {step.nickname ? ` · ${step.nickname}` : ""}
+                      </p>
+
+                      {type === "drawing" ? (
+                        <DrawingPreview
+                          drawing={step.drawing}
+                          allowDownload
+                          downloadName={`doodle-chaos-chain-${index + 1}-stage-${stage}`}
+                        />
+                      ) : (
+                        <p>{textAnswer || "No guess was submitted."}</p>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             ))}
           </div>
