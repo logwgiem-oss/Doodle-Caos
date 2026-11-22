@@ -88,9 +88,31 @@ function DrawingBoard({ onSubmit, disabled }) {
     strokes.forEach((stroke) => {
       if (!stroke.points?.length) return;
 
+      const lineWidth = stroke.size * 2;
+
+      // A single tap creates a filled dot.
+      if (stroke.points.length === 1) {
+        const point = stroke.points[0];
+
+        ctx.beginPath();
+        ctx.fillStyle = stroke.color;
+
+        ctx.arc(
+          point.x * canvas.width,
+          point.y * canvas.height,
+          lineWidth / 2,
+          0,
+          Math.PI * 2
+        );
+
+        ctx.fill();
+        return;
+      }
+
+      // Draw normal lines.
       ctx.beginPath();
       ctx.strokeStyle = stroke.color;
-      ctx.lineWidth = stroke.size * 2;
+      ctx.lineWidth = lineWidth;
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
 
@@ -172,7 +194,7 @@ function DrawingBoard({ onSubmit, disabled }) {
         onPointerMove={moveDrawing}
         onPointerUp={stopDrawing}
         onPointerCancel={stopDrawing}
-        onContextMenu={(e) => e.preventDefault()}
+        onContextMenu={(event) => event.preventDefault()}
         style={{
           width: "100%",
           height: "350px",
@@ -250,6 +272,7 @@ function DrawingPreview({
     if (!canvas) return;
 
     const ctx = canvas.getContext("2d");
+
     canvas.width = 600;
     canvas.height = 400;
 
@@ -261,9 +284,30 @@ function DrawingPreview({
     drawing.forEach((stroke) => {
       if (!stroke.points?.length) return;
 
+      const lineWidth = (stroke.size || 5) * 2;
+
+      // Keep single-tap dots visible in previews and downloads.
+      if (stroke.points.length === 1) {
+        const point = stroke.points[0];
+
+        ctx.beginPath();
+        ctx.fillStyle = stroke.color || "#111";
+
+        ctx.arc(
+          point.x * canvas.width,
+          point.y * canvas.height,
+          lineWidth / 2,
+          0,
+          Math.PI * 2
+        );
+
+        ctx.fill();
+        return;
+      }
+
       ctx.beginPath();
       ctx.strokeStyle = stroke.color || "#111";
-      ctx.lineWidth = (stroke.size || 5) * 2;
+      ctx.lineWidth = lineWidth;
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
 
@@ -287,8 +331,10 @@ function DrawingPreview({
     if (!canvas) return;
 
     const link = document.createElement("a");
+
     link.href = canvas.toDataURL("image/png");
     link.download = `${downloadName}.png`;
+
     document.body.appendChild(link);
     link.click();
     link.remove();
@@ -902,6 +948,7 @@ function App() {
                 {(chain.steps || []).map((step, stepIndex) => {
                   const stage =
                     step.stage ?? step.stage_number ?? stepIndex + 1;
+
                   const type = step.type || step.action_type;
                   const textAnswer = step.text ?? step.text_answer;
 
@@ -914,6 +961,7 @@ function App() {
                           Stage {stage} ·{" "}
                           {type === "drawing" ? "Drawing" : "Guess"}
                         </strong>
+
                         {step.nickname ? ` · ${step.nickname}` : ""}
                       </p>
 
