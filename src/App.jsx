@@ -1,10 +1,21 @@
 import { useEffect, useRef, useState } from 'react'
 import { supabase } from './subabase'
 
-function DrawingBoard({ strokes, setStrokes, color, size, disabled }) {
+const button = {
+  padding: '12px 18px',
+  borderRadius: 10,
+  border: 0,
+  background: '#292039',
+  color: 'white',
+  fontWeight: 'bold',
+  cursor: 'pointer',
+  margin: 5
+}
+
+function DrawingBoard({ strokes, setStrokes, color, disabled }) {
   const svgRef = useRef(null)
 
-  function getPoint(event) {
+  function point(event) {
     const rect = svgRef.current.getBoundingClientRect()
     return {
       x: Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width)),
@@ -12,32 +23,31 @@ function DrawingBoard({ strokes, setStrokes, color, size, disabled }) {
     }
   }
 
-  function startDrawing(event) {
+  function start(event) {
     if (disabled) return
     event.preventDefault()
     event.currentTarget.setPointerCapture(event.pointerId)
 
-    setStrokes(previous => [
-      ...previous,
-      { color, size, points: [getPoint(event)] }
+    setStrokes(old => [
+      ...old,
+      { color, size: 3, points: [point(event)] }
     ])
   }
 
-  function continueDrawing(event) {
+  function move(event) {
     if (disabled || !event.buttons) return
     event.preventDefault()
 
-    const point = getPoint(event)
+    const nextPoint = point(event)
 
-    setStrokes(previous => {
-      if (!previous.length) return previous
-
-      const updated = [...previous]
+    setStrokes(old => {
+      if (!old.length) return old
+      const updated = [...old]
       const last = updated[updated.length - 1]
 
       updated[updated.length - 1] = {
         ...last,
-        points: [...last.points, point]
+        points: [...last.points, nextPoint]
       }
 
       return updated
@@ -49,24 +59,22 @@ function DrawingBoard({ strokes, setStrokes, color, size, disabled }) {
       ref={svgRef}
       viewBox="0 0 1000 600"
       preserveAspectRatio="none"
-      onPointerDown={startDrawing}
-      onPointerMove={continueDrawing}
+      onPointerDown={start}
+      onPointerMove={move}
       style={{
         width: '100%',
-        height: 'auto',
         aspectRatio: '5 / 3',
         background: 'white',
-        border: '2px solid #222',
+        border: '2px solid #333',
         borderRadius: 12,
-        touchAction: 'none',
-        display: 'block'
+        touchAction: 'none'
       }}
     >
       {strokes.map((stroke, index) => (
         <polyline
           key={index}
           points={stroke.points
-            .map(point => `${point.x * 1000},${point.y * 600}`)
+            .map(p => `${p.x * 1000},${p.y * 600}`)
             .join(' ')}
           fill="none"
           stroke={stroke.color}
@@ -95,11 +103,11 @@ function DrawingPreview({ strokes }) {
         <polyline
           key={index}
           points={(stroke.points || [])
-            .map(point => `${point.x * 1000},${point.y * 600}`)
+            .map(p => `${p.x * 1000},${p.y * 600}`)
             .join(' ')}
           fill="none"
           stroke={stroke.color || '#111'}
-          strokeWidth={(stroke.size || 2) * 5}
+          strokeWidth={(stroke.size || 3) * 5}
           strokeLinecap="round"
           strokeLinejoin="round"
         />
@@ -114,17 +122,25 @@ export default function App() {
   const [room, setRoom] = useState(null)
   const [playerId, setPlayerId] = useState(null)
   const [players, setPlayers] = useState([])
+
   const [status, setStatus] = useState('waiting')
   const [phase, setPhase] = useState('prompt')
+  const [turnNumber, setTurnNumber] = useState(0)
   const [phaseEndsAt, setPhaseEndsAt] = useState(null)
   const [secondsLeft, setSecondsLeft] = useState(0)
+
+  const [promptInput, setPromptInput] = useState('')
   const [prompt, setPrompt] = useState('')
-  const [customPrompt, setCustomPrompt] = useState('')
-  const [drawings, setDrawings] = useState([])
+  const [taskDrawing, setTaskDrawing] = useState(null)
+  const [chainSteps, setChainSteps] = useState([])
+  const [gallery, setGallery] = useState([])
+
   const [strokes, setStrokes] = useState([])
   const [color, setColor] = useState('#111111')
-  const [size, setSize] = useState(3)
+  const [guess, setGuess] = useState('')
   const [submitted, setSubmitted] = useState(false)
+  const [promptSubmitted, setPromptSubmitted] = useState(false)
+
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
 
@@ -132,12 +148,11 @@ export default function App() {
 
   async function createRoom() {
     if (!nickname.trim()) {
-      setMessage('Please enter a nickname first!')
+      setMessage('Enter a nickname first!')
       return
     }
 
     setLoading(true)
-    setMessage('')
 
     const { data, error } = await supabase.rpc('create_room', {
       p_nickname: nickname.trim()
@@ -157,17 +172,16 @@ export default function App() {
       host_player_id: data.player_id
     })
     setStatus('waiting')
-    setMessage('Room created! Share the code with your friends.')
+    setMessage('Room created! Share your code.')
   }
 
   async function joinRoom() {
     if (!nickname.trim() || !roomCode.trim()) {
-      setMessage('Enter your nickname and room code first!')
+      setMessage('Enter your nickname and room code!')
       return
     }
 
     setLoading(true)
-    setMessage('')
 
     const { data, error } = await supabase.rpc('join_room', {
       p_nickname: nickname.trim(),
@@ -201,19 +215,16 @@ export default function App() {
     if (error || !data) return
 
     const roomData = data.room || data
+
     setPlayers(data.players || [])
 
     if (roomData.host_player_id) {
-      setRoom(previous => ({
-        ...previous,
+      setRoom(old => ({
+        ...old,
         ...roomData,
         id: room.id,
-        code: previous.code
+        code: old.code
       }))
-    }
-
-    if (roomData.status) {
-      setStatus(roomData.status)
     }
   }
 
@@ -227,26 +238,26 @@ export default function App() {
 
     if (error || !data) return
 
-    setPrompt(data.prompt || '')
-    setDrawings(data.drawings || [])
-    setPhase(data.phase || 'prompt')
-    setPhaseEndsAt(data.phase_ends_at || null)
-
-    if (data.room_status === 'finished' || data.phase === 'finished') {
-      setStatus('finished')
-    } else if (data.room_status) {
-      setStatus(data.room_status)
+    if (data.phase) setPhase(data.phase)
+    if (data.turn_number !== undefined) {
+      setTurnNumber(data.turn_number)
     }
 
-    const myDrawing = (data.drawings || []).some(
-      drawing => drawing.player_id === playerId
-    )
-    setSubmitted(myDrawing)
+    setPhaseEndsAt(data.phase_ends_at || null)
+    setPrompt(data.prompt || '')
+    setTaskDrawing(data.task_drawing || null)
+    setChainSteps(data.chain_steps || [])
+    setGallery(data.gallery || [])
+
+    setSubmitted(Boolean(data.submitted))
+    setPromptSubmitted(Boolean(data.prompt_submitted))
+
+    if (data.room_status) {
+      setStatus(data.room_status)
+    }
   }
 
   async function startGame() {
-    if (!room?.id || !playerId) return
-
     setLoading(true)
     setMessage('')
 
@@ -262,42 +273,53 @@ export default function App() {
       return
     }
 
+    setPromptInput('')
     setStrokes([])
-    setSubmitted(false)
+    setGuess('')
     await refreshGame()
   }
 
-  async function saveCustomPrompt() {
-    if (!customPrompt.trim()) {
-      setMessage('Enter a prompt first!')
+  async function submitPrompt() {
+    if (!promptInput.trim()) {
+      setMessage('Write a prompt first!')
       return
     }
 
-    const { error } = await supabase.rpc('set_custom_prompt', {
+    setLoading(true)
+
+    const { error } = await supabase.rpc('submit_prompt', {
       p_room_id: room.id,
       p_player_id: playerId,
-      p_prompt: customPrompt.trim()
+      p_prompt: promptInput.trim()
     })
+
+    setLoading(false)
 
     if (error) {
       setMessage(error.message)
       return
     }
 
-    setMessage('Prompt updated!')
-    setCustomPrompt('')
+    setPromptSubmitted(true)
+    setMessage('Prompt submitted! Waiting for everyone else...')
     await refreshGame()
   }
 
-  async function submitDrawing() {
-    if (submitted || phase !== 'drawing' || secondsLeft <= 0) return
+  async function submitTurn() {
+    if (submitted || secondsLeft <= 0) return
+
+    if (phase === 'guessing' && !guess.trim()) {
+      setMessage('Type your guess first!')
+      return
+    }
 
     setLoading(true)
 
-    const { error } = await supabase.rpc('submit_drawing', {
+    const { error } = await supabase.rpc('submit_turn', {
       p_room_id: room.id,
       p_player_id: playerId,
-      p_drawing: strokes
+      p_text: phase === 'guessing' ? guess.trim() : null,
+      p_drawing: phase === 'drawing' ? strokes : null
     })
 
     setLoading(false)
@@ -308,7 +330,7 @@ export default function App() {
     }
 
     setSubmitted(true)
-    setMessage('Drawing submitted!')
+    setMessage('Submitted! Waiting for the other players...')
     await refreshGame()
   }
 
@@ -324,15 +346,10 @@ export default function App() {
     setPlayerId(null)
     setPlayers([])
     setStatus('waiting')
-    setPhase('prompt')
-    setPhaseEndsAt(null)
-    setDrawings([])
-    setStrokes([])
-    setSubmitted(false)
     setMessage('')
+    setStrokes([])
   }
 
-  // Refresh the room and game state for everyone.
   useEffect(() => {
     if (!room?.id || !playerId) return
 
@@ -347,7 +364,6 @@ export default function App() {
     return () => clearInterval(interval)
   }, [room?.id, playerId])
 
-  // Update the visible countdown every second.
   useEffect(() => {
     function updateTimer() {
       if (!phaseEndsAt) {
@@ -355,12 +371,10 @@ export default function App() {
         return
       }
 
-      const remaining = Math.max(
+      setSecondsLeft(Math.max(
         0,
         Math.ceil((new Date(phaseEndsAt).getTime() - Date.now()) / 1000)
-      )
-
-      setSecondsLeft(remaining)
+      ))
     }
 
     updateTimer()
@@ -369,251 +383,314 @@ export default function App() {
     return () => clearInterval(interval)
   }, [phaseEndsAt])
 
-  const buttonStyle = {
-    padding: '12px 18px',
-    borderRadius: 10,
-    border: 'none',
-    background: '#222',
-    color: 'white',
-    fontWeight: 'bold',
-    cursor: 'pointer',
-    margin: 4
-  }
-
-  const cardStyle = {
+  const card = {
     background: 'white',
-    color: '#222',
+    color: '#292039',
     padding: 20,
     borderRadius: 16,
-    margin: '16px auto',
     maxWidth: 650,
+    margin: '18px auto',
     boxShadow: '0 4px 18px #0001'
+  }
+
+  function renderGallery() {
+    return (
+      <div>
+        <h2>🎉 THE CHAOS REVEAL!</h2>
+        <p>See how everyone's original prompts changed!</p>
+
+        {gallery.map((chain, index) => (
+          <article
+            key={index}
+            style={{
+              background: '#f4effb',
+              padding: 16,
+              borderRadius: 14,
+              margin: '20px 0'
+            }}
+          >
+            <h3>Chain {index + 1}</h3>
+
+            <h4>Original prompt</h4>
+            <p>{chain.original_prompt}</p>
+
+            {(chain.steps || []).map((step, stepIndex) => (
+              <div
+                key={stepIndex}
+                style={{
+                  background: 'white',
+                  padding: 12,
+                  borderRadius: 10,
+                  margin: '12px 0'
+                }}
+              >
+                <strong>
+                  {step.type === 'drawing' ? '🎨 Drawing' : '💭 Guess'}
+                </strong>
+                <p>By {step.nickname}</p>
+
+                {step.type === 'drawing' ? (
+                  <DrawingPreview strokes={step.drawing || []} />
+                ) : (
+                  <h3>{step.text}</h3>
+                )}
+              </div>
+            ))}
+          </article>
+        ))}
+      </div>
+    )
   }
 
   return (
     <main style={{
       minHeight: '100vh',
       background: '#f3edff',
-      color: '#222',
+      color: '#292039',
       padding: 18,
-      fontFamily: 'Arial, sans-serif',
-      textAlign: 'center'
+      textAlign: 'center',
+      fontFamily: 'Arial, sans-serif'
     }}>
-      <header>
-        <h2>✳ DOODLE CHAOS</h2>
-        <p>THE DRAWING PARTY GAME</p>
-      </header>
+      <h1>✳ DOODLE CHAOS</h1>
+      <p>DRAW · GUESS · PASS · REVEAL</p>
 
       {!room && (
-        <>
-          <section style={cardStyle}>
-            <p>DRAW · PASS · LAUGH</p>
-            <h1>Good ideas.<br /><em>Terrible</em> drawings.</h1>
-            <p>Grab your friends, make some drawings and see how chaotic things get.</p>
+        <section style={card}>
+          <h2>Ready for chaos?</h2>
 
-            <input
-              placeholder="Your nickname"
-              value={nickname}
-              onChange={event => setNickname(event.target.value)}
-              maxLength={18}
-              style={{ padding: 12, width: '85%', margin: 8 }}
-            />
+          <input
+            placeholder="Your nickname"
+            value={nickname}
+            onChange={e => setNickname(e.target.value)}
+            maxLength={18}
+            style={{ padding: 12, width: '85%', margin: 8 }}
+          />
 
-            <button
-              style={buttonStyle}
-              onClick={createRoom}
-              disabled={loading}
-            >
-              {loading ? 'PLEASE WAIT...' : '+ CREATE A ROOM'}
+          <div>
+            <button style={button} onClick={createRoom} disabled={loading}>
+              CREATE ROOM
             </button>
+          </div>
 
-            <div style={{ marginTop: 15 }}>
-              <input
-                placeholder="ROOM CODE"
-                value={roomCode}
-                onChange={event => setRoomCode(event.target.value.toUpperCase())}
-                maxLength={5}
-                style={{ padding: 12, width: 130 }}
-              />
-              <button
-                style={buttonStyle}
-                onClick={joinRoom}
-                disabled={loading}
-              >
-                JOIN ↗
-              </button>
-            </div>
+          <div style={{ marginTop: 18 }}>
+            <input
+              placeholder="ROOM CODE"
+              value={roomCode}
+              onChange={e => setRoomCode(e.target.value.toUpperCase())}
+              maxLength={5}
+              style={{ padding: 12, width: 130 }}
+            />
+            <button style={button} onClick={joinRoom} disabled={loading}>
+              JOIN ROOM
+            </button>
+          </div>
 
-            {message && <p role="status">{message}</p>}
-          </section>
-        </>
+          {message && <p>{message}</p>}
+        </section>
       )}
 
       {room && (
-        <section style={cardStyle}>
+        <section style={card}>
           <h2>ROOM: {room.code}</h2>
-          <p>Share this code with your friends!</p>
+          <p>Players: {players.length}</p>
 
           {status === 'waiting' && (
             <>
               <h3>Players in the room</h3>
+
               {players.map(player => (
                 <p key={player.id}>🎨 {player.nickname}</p>
               ))}
 
-              {players.length === 0 && <p>Waiting for players...</p>}
-
               {isHost ? (
-                <button
-                  style={buttonStyle}
-                  onClick={startGame}
-                  disabled={loading || players.length < 1}
-                >
-                  {loading ? 'STARTING...' : 'START GAME'}
+                <button style={button} onClick={startGame} disabled={loading}>
+                  START GAME
                 </button>
               ) : (
-                <p>Waiting for the host to start the game...</p>
+                <p>Waiting for the host...</p>
               )}
             </>
           )}
 
           {status === 'playing' && (
             <>
-              <h2>
-                {phase === 'prompt' ? 'GET READY!' : 'DRAW YOUR PROMPT!'}
-              </h2>
-
               <div style={{
                 fontSize: 42,
                 fontWeight: 'bold',
-                margin: 12,
-                color: secondsLeft <= 10 ? '#d33' : '#5b35a5'
+                color: secondsLeft <= 10 ? '#d32f2f' : '#683db3',
+                margin: 12
               }}>
                 {secondsLeft}s
               </div>
 
-              <h2>{prompt}</h2>
+              <p>Round stage {turnNumber}</p>
 
               {phase === 'prompt' && (
                 <>
-                  <p>Remember the prompt! Drawing starts when the timer ends.</p>
+                  <h2>✍️ WRITE YOUR PROMPT</h2>
+                  <p>Think of something funny for someone to draw!</p>
 
-                  {isHost && (
-                    <div style={{ marginTop: 20 }}>
-                      <input
-                        placeholder="Write your own prompt"
-                        value={customPrompt}
-                        onChange={event => setCustomPrompt(event.target.value)}
-                        style={{ padding: 10, width: '70%' }}
+                  {!promptSubmitted ? (
+                    <>
+                      <textarea
+                        placeholder="Write your own silly prompt..."
+                        value={promptInput}
+                        onChange={e => setPromptInput(e.target.value)}
+                        maxLength={120}
+                        rows={4}
+                        style={{
+                          width: '95%',
+                          padding: 12,
+                          borderRadius: 10,
+                          fontSize: 16
+                        }}
                       />
+
+                      <p>{promptInput.length}/120 characters</p>
+
                       <button
-                        style={buttonStyle}
-                        onClick={saveCustomPrompt}
+                        style={button}
+                        onClick={submitPrompt}
+                        disabled={loading || secondsLeft <= 0}
                       >
-                        SET PROMPT
+                        SUBMIT PROMPT
                       </button>
-                    </div>
+                    </>
+                  ) : (
+                    <h3>✅ Prompt submitted! Waiting for everyone...</h3>
                   )}
+
+                  <p>Your prompt stays secret until the final reveal.</p>
                 </>
               )}
 
               {phase === 'drawing' && (
                 <>
-                  <p>Make your drawing before time runs out!</p>
+                  <h2>🎨 DRAW THIS!</h2>
 
-                  <DrawingBoard
-                    strokes={strokes}
-                    setStrokes={setStrokes}
-                    color={color}
-                    size={size}
-                    disabled={submitted || secondsLeft <= 0}
-                  />
+                  <div style={{
+                    background: '#f2eaff',
+                    padding: 14,
+                    borderRadius: 12,
+                    margin: '12px 0'
+                  }}>
+                    <h2>{prompt || 'Look at the previous guess!'}</h2>
+                  </div>
 
-                  <div style={{ margin: 12 }}>
-                    {['#111111', '#e53935', '#1976d2', '#2e9d50', '#f5a623', '#9c27b0'].map(c => (
-                      <button
-                        key={c}
-                        onClick={() => setColor(c)}
-                        style={{
-                          width: 32,
-                          height: 32,
-                          borderRadius: '50%',
-                          background: c,
-                          border: color === c ? '4px solid #888' : '2px solid white',
-                          margin: 4
-                        }}
-                        aria-label={`Choose ${c}`}
+                  {!submitted ? (
+                    <>
+                      <DrawingBoard
+                        strokes={strokes}
+                        setStrokes={setStrokes}
+                        color={color}
+                        disabled={secondsLeft <= 0}
                       />
-                    ))}
-                  </div>
 
-                  <div>
-                    <button style={buttonStyle} onClick={() => setColor('white')}>
-                      ERASER
-                    </button>
-                    <button style={buttonStyle} onClick={() => setStrokes([])}>
-                      CLEAR
-                    </button>
-                  </div>
+                      <div style={{ margin: 12 }}>
+                        {[
+                          '#111111',
+                          '#e53935',
+                          '#1976d2',
+                          '#2e9d50',
+                          '#f5a623',
+                          '#9c27b0'
+                        ].map(c => (
+                          <button
+                            key={c}
+                            onClick={() => setColor(c)}
+                            aria-label={`Choose ${c}`}
+                            style={{
+                              width: 36,
+                              height: 36,
+                              borderRadius: '50%',
+                              background: c,
+                              border: color === c
+                                ? '4px solid #888'
+                                : '2px solid white',
+                              margin: 4
+                            }}
+                          />
+                        ))}
+                      </div>
 
-                  <div style={{ margin: 12 }}>
-                    <label>Brush size </label>
-                    <input
-                      type="range"
-                      min="1"
-                      max="10"
-                      value={size}
-                      onChange={event => setSize(Number(event.target.value))}
-                    />
-                  </div>
+                      <button
+                        style={button}
+                        onClick={() => setColor('white')}
+                      >
+                        ERASER
+                      </button>
 
-                  <button
-                    style={buttonStyle}
-                    onClick={submitDrawing}
-                    disabled={loading || submitted || secondsLeft <= 0}
-                  >
-                    {submitted ? 'DRAWING SUBMITTED ✓' : loading ? 'SUBMITTING...' : 'SUBMIT DRAWING'}
-                  </button>
+                      <button
+                        style={button}
+                        onClick={() => setStrokes([])}
+                      >
+                        CLEAR
+                      </button>
 
-                  {submitted && <p>Waiting for the timer to finish...</p>}
+                      <div>
+                        <button
+                          style={button}
+                          onClick={submitTurn}
+                          disabled={loading || secondsLeft <= 0}
+                        >
+                          SUBMIT DRAWING
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <h3>✅ Drawing submitted! Waiting for everyone...</h3>
+                  )}
                 </>
               )}
+
+              {phase === 'guessing' && (
+                <>
+                  <h2>💭 WHAT IS THIS?</h2>
+                  <p>Look carefully at the drawing and guess what it means!</p>
+
+                  {taskDrawing && (
+                    <DrawingPreview strokes={taskDrawing} />
+                  )}
+
+                  {!submitted ? (
+                    <>
+                      <textarea
+                        placeholder="What do you think it is?"
+                        value={guess}
+                        onChange={e => setGuess(e.target.value)}
+                        maxLength={120}
+                        rows={3}
+                        style={{
+                          width: '95%',
+                          padding: 12,
+                          borderRadius: 10,
+                          fontSize: 16,
+                          marginTop: 12
+                        }}
+                      />
+
+                      <button
+                        style={button}
+                        onClick={submitTurn}
+                        disabled={loading || secondsLeft <= 0}
+                      >
+                        SUBMIT GUESS
+                      </button>
+                    </>
+                  ) : (
+                    <h3>✅ Guess submitted! Waiting for everyone...</h3>
+                  )}
+                </>
+              )}
+
+              {message && <p>{message}</p>}
             </>
           )}
 
-          {status === 'finished' && (
-            <>
-              <h2>🎉 THE DRAWINGS ARE IN!</h2>
-              <p>Here's what everyone created.</p>
-
-              {drawings.map((drawing, index) => (
-                <div key={index} style={{
-                  margin: '20px auto',
-                  padding: 12,
-                  background: '#f5f2fa',
-                  borderRadius: 12
-                }}>
-                  <h3>{drawing.nickname}</h3>
-                  <DrawingPreview strokes={drawing.drawing} />
-                </div>
-              ))}
-
-              {drawings.length === 0 && (
-                <p>No drawings were submitted this round.</p>
-              )}
-
-              {isHost && (
-                <button style={buttonStyle} onClick={startGame}>
-                  PLAY ANOTHER ROUND
-                </button>
-              )}
-            </>
-          )}
-
-          {message && <p role="status">{message}</p>}
+          {status === 'finished' && renderGallery()}
 
           <button
-            style={{ ...buttonStyle, background: '#777', marginTop: 20 }}
+            style={{ ...button, background: '#777', marginTop: 25 }}
             onClick={leaveRoom}
           >
             LEAVE ROOM
@@ -621,7 +698,7 @@ export default function App() {
         </section>
       )}
 
-      <footer style={{ marginTop: 30 }}>
+      <footer style={{ margin: 25 }}>
         MADE FOR FRIENDS, NOT ARTISTS.
       </footer>
     </main>
