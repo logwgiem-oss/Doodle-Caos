@@ -1,9 +1,69 @@
 import { useState } from 'react'
+import { supabase } from './subabase'
 import './style.css'
 
 export default function App() {
   const [nickname, setNickname] = useState('')
   const [roomCode, setRoomCode] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [message, setMessage] = useState('')
+  const [room, setRoom] = useState(null)
+
+  async function createRoom() {
+    if (!nickname.trim()) {
+      setMessage('Please enter a nickname first!')
+      return
+    }
+
+    setLoading(true)
+    setMessage('')
+    setRoom(null)
+
+    const { data, error } = await supabase.rpc('create_room', {
+      p_nickname: nickname.trim()
+    })
+
+    setLoading(false)
+
+    if (error) {
+      setMessage(error.message)
+      return
+    }
+
+    setRoom(data)
+    setMessage('Your room is ready! Share the code with your friends.')
+  }
+
+  async function joinRoom() {
+    if (!nickname.trim()) {
+      setMessage('Please enter a nickname first!')
+      return
+    }
+
+    if (!roomCode.trim()) {
+      setMessage('Please enter a room code!')
+      return
+    }
+
+    setLoading(true)
+    setMessage('')
+    setRoom(null)
+
+    const { data, error } = await supabase.rpc('join_room', {
+      p_nickname: nickname.trim(),
+      p_code: roomCode.trim()
+    })
+
+    setLoading(false)
+
+    if (error) {
+      setMessage(error.message)
+      return
+    }
+
+    setRoom(data)
+    setMessage('You joined the room successfully!')
+  }
 
   return (
     <main className="app">
@@ -32,8 +92,8 @@ export default function App() {
           maxLength={18}
         />
 
-        <button onClick={() => alert('Room creation coming next!')}>
-          + CREATE A ROOM
+        <button onClick={createRoom} disabled={loading}>
+          {loading ? 'PLEASE WAIT...' : '+ CREATE A ROOM'}
         </button>
 
         <div className="join">
@@ -44,10 +104,20 @@ export default function App() {
             maxLength={5}
           />
 
-          <button onClick={() => alert('Joining rooms coming next!')}>
+          <button onClick={joinRoom} disabled={loading}>
             JOIN ↗
           </button>
         </div>
+
+        {message && <p role="status">{message}</p>}
+
+        {room && (
+          <div>
+            <h3>ROOM CODE</h3>
+            <h1>{room.code}</h1>
+            <p>Share this code with your friends!</p>
+          </div>
+        )}
 
         <small>No accounts needed. Just pick a nickname.</small>
       </section>
