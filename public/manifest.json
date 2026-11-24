@@ -1,19 +1,18 @@
 {
   "short_name": "Doodle Chaos",
-  "name": "Doodle Chaos - Draw, Guess and Laugh with Friends",
+  "name": "Doodle Chaos",
   "icons": [
     {
-      "src": "/Doodle-Caos/doodle-chaos-icon.png",
+      "src": "doodle-chaos-icon.png",
       "type": "image/png",
       "sizes": "512x512",
       "purpose": "any maskable"
     }
   ],
-  "start_url": "/Doodle-Caos/",
-  "scope": "/Doodle-Caos/",
-  "id": "/Doodle-Caos/",
+  "start_url": "index.html",
   "background_color": "#171329",
   "theme_color": "#171329",
   "display": "standalone",
-  "orientation": "portrait"
+  "orientation": "portrait",
+  "id": "doodle-chaos"
 }
