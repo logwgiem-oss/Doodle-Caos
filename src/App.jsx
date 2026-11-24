@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { supabase } from "./subabase";
 
 const PREVIEW_SECONDS = 3;
+const LOGO_PATH = "/Doodle-Caos/doodle-chaos-icon.png";
 
 const styles = {
   page: {
@@ -47,6 +48,21 @@ const styles = {
   },
 };
 
+function GameLogo({ size = 48 }) {
+  return (
+    <img
+      src={LOGO_PATH}
+      alt="Doodle Chaos logo"
+      style={{
+        width: `${size}px`,
+        height: `${size}px`,
+        objectFit: "contain",
+        flexShrink: 0,
+      }}
+    />
+  );
+}
+
 function DrawingBoard({ onSubmit, disabled }) {
   const canvasRef = useRef(null);
   const drawingRef = useRef(false);
@@ -90,7 +106,6 @@ function DrawingBoard({ onSubmit, disabled }) {
 
       const lineWidth = stroke.size * 2;
 
-      // A single tap creates a filled dot.
       if (stroke.points.length === 1) {
         const point = stroke.points[0];
 
@@ -109,7 +124,6 @@ function DrawingBoard({ onSubmit, disabled }) {
         return;
       }
 
-      // Draw normal lines.
       ctx.beginPath();
       ctx.strokeStyle = stroke.color;
       ctx.lineWidth = lineWidth;
@@ -286,7 +300,6 @@ function DrawingPreview({
 
       const lineWidth = (stroke.size || 5) * 2;
 
-      // Keep single-tap dots visible in previews and downloads.
       if (stroke.points.length === 1) {
         const point = stroke.points[0];
 
@@ -581,7 +594,6 @@ function App() {
     setMessage("");
   }
 
-  // Poll the room and game state.
   useEffect(() => {
     if (!roomId || !playerId) return;
 
@@ -596,7 +608,6 @@ function App() {
     return () => clearInterval(interval);
   }, [roomId, playerId]);
 
-  // Show a three-second preview for each new drawing or guessing task.
   useEffect(() => {
     if (phase !== "drawing" && phase !== "guessing") {
       setPreview(false);
@@ -630,7 +641,6 @@ function App() {
     return () => clearInterval(interval);
   }, [phase, turnNumber]);
 
-  // Phase countdown.
   useEffect(() => {
     if (!phaseEndsAt) return;
 
@@ -715,8 +725,19 @@ function App() {
     return (
       <main style={styles.page}>
         <div style={styles.container}>
-          <h1 style={{ textAlign: "center", fontSize: "42px" }}>
-            🎨 Doodle Chaos
+          <h1
+            style={{
+              textAlign: "center",
+              fontSize: "42px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "12px",
+              flexWrap: "wrap",
+            }}
+          >
+            <GameLogo size={48} />
+            Doodle Chaos
           </h1>
 
           <p style={{ textAlign: "center", color: "#aaa" }}>
@@ -768,8 +789,18 @@ function App() {
   return (
     <main style={styles.page}>
       <div style={styles.container}>
-        <h1 style={{ textAlign: "center" }}>
-          🎨 Doodle Chaos
+        <h1
+          style={{
+            textAlign: "center",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "12px",
+            flexWrap: "wrap",
+          }}
+        >
+          <GameLogo size={42} />
+          Doodle Chaos
         </h1>
 
         <div style={styles.card}>
