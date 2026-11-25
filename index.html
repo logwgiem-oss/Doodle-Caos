@@ -1,8 +1,11 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <title>Doodle Chaos 🎨</title>
+
     <meta name="theme-color" content="#171329" />
 
     <meta
@@ -15,18 +18,10 @@
       content="Doodle Chaos - Draw, guess and laugh with friends!"
     />
 
-    <title>Doodle Chaos 🎨</title>
-
-    <!-- Browser and Safari tab icons -->
-    <link rel="icon" type="image/x-icon" href="/Doodle-Caos/favicon.ico" />
-    <link rel="icon" type="image/png" sizes="512x512" href="/Doodle-Caos/doodle-chaos-icon.png" />
-    <link rel="shortcut icon" href="/Doodle-Caos/favicon.ico" type="image/x-icon" />
-
-    <!-- iPhone Home Screen icon -->
-    <link rel="apple-touch-icon" sizes="512x512" href="/Doodle-Caos/doodle-chaos-icon.png" />
-
-    <!-- Web app manifest -->
-    <link rel="manifest" href="/Doodle-Caos/manifest.json" />
+    <!-- Browser and app icons: Wordle-style relative paths -->
+    <link rel="manifest" href="manifest.json" />
+    <link rel="icon" type="image/png" href="doodle-chaos-icon.png" />
+    <link rel="apple-touch-icon" href="doodle-chaos-icon.png" />
 
     <!-- Mobile app support -->
     <meta name="mobile-web-app-capable" content="yes" />
@@ -34,12 +29,12 @@
     <meta name="apple-mobile-web-app-title" content="Doodle Chaos" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 
-    <!-- Browser theme -->
     <meta name="color-scheme" content="dark" />
   </head>
 
   <body>
     <div id="root"></div>
+
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
