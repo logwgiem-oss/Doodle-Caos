@@ -1,0 +1,17 @@
+{
+  "short_name": "Doodle Chaos",
+  "name": "Doodle Chaos",
+  "icons": [
+    {
+      "src": "./doodle-chaos-icon.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "./",
+  "background_color": "#171329",
+  "theme_color": "#171329",
+  "display": "standalone",
+  "orientation": "portrait"
+}
