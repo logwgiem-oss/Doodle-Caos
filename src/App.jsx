@@ -48,7 +48,7 @@ const styles = {
   },
 };
 
-function GameLogo({ size = 65 }) {
+function GameLogo({ size = 90 }) {
   return (
     <img
       src={LOGO_PATH}
